@@ -1,0 +1,8 @@
+if(TARGET cxx::cxx)
+    return()
+endif()
+get_filename_component(CxxRoot "${CMAKE_CURRENT_LIST_DIR}/../dependencies/libcxx-full/prefab/modules/cxx" ABSOLUTE)
+add_library(cxx::cxx STATIC IMPORTED GLOBAL)
+set_target_properties(cxx::cxx PROPERTIES IMPORTED_LOCATION "${CxxRoot}/libs/android.arm64-v8a/libcxx.a" INTERFACE_INCLUDE_DIRECTORIES "${CxxRoot}/include")
+target_compile_options(cxx::cxx INTERFACE "$<$<COMPILE_LANGUAGE:CXX>:-nostdinc++>")
+include("${CxxRoot}/include/prefab/cmake-config.cmake")

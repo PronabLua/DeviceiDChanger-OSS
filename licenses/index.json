@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "files": [
+    {
+      "file": "DexBuilder-LGPL-3.0.txt",
+      "sha256": "eaac271f6aaeec28f07bc8834a313ea23b2aa1282a0dd7ea3e6067f0b25895db",
+      "source": "https://github.com/LSPosed/DexBuilder/blob/ac7fb2230954ee311808bad469b0db501f31bfb8/LICENSE",
+      "revision": "ac7fb2230954ee311808bad469b0db501f31bfb8"
+    },
+    {
+      "file": "Dobby-Apache-2.0.txt",
+      "sha256": "5ad8c213095c573921d7388edf93f6a9f54490b8ebf3b165ae8ef1947cf70846",
+      "source": "https://github.com/jmpews/Dobby/blob/0c29f641c7e932af9ff99f4abf9ef98040a5bbba/LICENSE",
+      "revision": "0c29f641c7e932af9ff99f4abf9ef98040a5bbba"
+    },
+    {
+      "file": "GPL-3.0.txt",
+      "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+      "source": "https://www.gnu.org/licenses/gpl-3.0.txt",
+      "revision": "GNU GPL version 3, 29 June 2007"
+    },
+    {
+      "file": "LSPlant-LGPL-3.0.txt",
+      "sha256": "09acdfb5bfb7aaed93d7d7fa5cebfc7350c555847d2ed07b5b9716da43670e04",
+      "source": "https://github.com/LSPosed/LSPlant/blob/6ac2280d8d88e14f0864c26ac97c1dc96713bde1/LICENSE",
+      "revision": "6ac2280d8d88e14f0864c26ac97c1dc96713bde1"
+    },
+    {
+      "file": "NDK30-LLVM-NOTICE.txt",
+      "sha256": "f96f763beb66a7ba7a667647fc64c0226ace875e590c831fdd9579ec1c1d91e1",
+      "source": "Android NDK 30.0.16248370/toolchains/llvm/prebuilt/windows-x86_64/NOTICE",
+      "revision": "30.0.16248370"
+    },
+    {
+      "file": "ParallelHashmap-Apache-2.0.txt",
+      "sha256": "e8de1a7393457e9c88768b78e6ba790622fbefb040ce48194c2cb0f1b6d4e9ff",
+      "source": "https://github.com/greg7mdp/parallel-hashmap/blob/0cd57d29a959256ed66b2afdd1009928fc625d09/LICENSE",
+      "revision": "0cd57d29a959256ed66b2afdd1009928fc625d09"
+    },
+    {
+      "file": "xDL-MIT.txt",
+      "sha256": "65a4f0a096b84aed7e35230224fc070bdfd1ab590a310f59db2204c670374e12",
+      "source": "https://github.com/hexhacking/xDL/blob/1e0b6254165a2ddcbd32f77a371700c69155acf8/LICENSE",
+      "revision": "1e0b6254165a2ddcbd32f77a371700c69155acf8"
+    },
+    {
+      "file": "Zygisk-API4-LICENSE.txt",
+      "sha256": "945ddd7807b99c9423e3e70c5e5d9dd445a83fff5a6d21e3753eb431f96df68e",
+      "source": "https://github.com/topjohnwu/zygisk-module-sample/blob/7bb941ac8edfcffd1d23761e401c45ca95409dc1/module/jni/zygisk.hpp",
+      "revision": "7bb941ac8edfcffd1d23761e401c45ca95409dc1"
+    }
+  ]
+}

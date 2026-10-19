@@ -1,0 +1,6 @@
+id=deviceidchanger_native
+name=Device ID Changer Native
+version=0.1.0-prototype
+versionCode=1
+author=pronablua
+description=Native manager and experimental per-app Android ID overrides. Android 10-17, ARM64, owner user only. Requires Zygisk.

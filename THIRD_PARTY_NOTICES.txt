@@ -1,0 +1,77 @@
+DeviceID Changer native prototype
+
+The upstream project by sidex15 is distributed under AGPL-3.0. Its license is
+retained in LICENSE. The native fork preserves upstream attribution and history.
+
+The native build pins the following source revisions. Complete license texts
+and their provenance/checksums are listed in licenses/index.json. That index
+lists only the notices selected for this build, not arbitrary dependency caches.
+
+LSPlant, LGPL-3.0
+https://github.com/LSPosed/LSPlant
+Revision: 6ac2280d8d88e14f0864c26ac97c1dc96713bde1
+License: licenses/LSPlant-LGPL-3.0.txt
+
+DexBuilder, LGPL-3.0, pinned by the LSPlant submodule
+https://github.com/LSPosed/DexBuilder
+Revision: ac7fb2230954ee311808bad469b0db501f31bfb8
+License: licenses/DexBuilder-LGPL-3.0.txt
+Both LGPL texts incorporate GPL-3.0, included as licenses/GPL-3.0.txt.
+
+Parallel Hashmap, Apache-2.0, pinned by the DexBuilder submodule
+https://github.com/greg7mdp/parallel-hashmap
+Revision: 0cd57d29a959256ed66b2afdd1009928fc625d09
+License: licenses/ParallelHashmap-Apache-2.0.txt
+
+Dobby, Apache-2.0
+https://github.com/jmpews/Dobby
+Revision: 0c29f641c7e932af9ff99f4abf9ef98040a5bbba
+License: licenses/Dobby-Apache-2.0.txt
+Local modification: native/patches/DobbyAndroid.patch replaces a circular
+platform-header dependency with direct POSIX page protection using the runtime
+page size. It also makes ARM64 near-hook allocation fail before patching,
+preserves a 16-byte relocation span behind a four-byte entry patch, snapshots
+recognized literal branch veneers, rejects unsupported overlapping PC-relative
+instructions, and checks patch ownership before restoring original bytes.
+The patch is applied by native/cmake/Dependencies.cmake.
+
+xDL, MIT
+https://github.com/hexhacking/xDL
+Revision: 1e0b6254165a2ddcbd32f77a371700c69155acf8
+License: licenses/xDL-MIT.txt
+The project adds a prefix-symbol lookup adapter in native/Source/Xdl.c.
+
+Zygisk public API version 4, permissive grant reproduced from its header
+https://github.com/topjohnwu/zygisk-module-sample
+Revision: 7bb941ac8edfcffd1d23761e401c45ca95409dc1
+License: licenses/Zygisk-API4-LICENSE.txt
+Copyright 2022-2023 John "topjohnwu" Wu. The exact header grant and disclaimer
+are retained in the listed license file.
+
+libcxx-full, LLVM runtime with Apache-2.0 and LLVM Exceptions/legacy terms
+Publisher source repository: https://github.com/LSPosed/prefab-libcxx
+Artifact: org.lsposed.libcxx:libcxx-full:30.0.16248370
+Artifact SHA256: bbe93ec17cf7cbe3d6d7dd305a645b4b61d7afc09dc048dc7db53149efb65e6e
+Publisher metadata: https://repo.maven.apache.org/maven2/org/lsposed/libcxx/libcxx-full/30.0.16248370/libcxx-full-30.0.16248370.pom
+Notice: licenses/NDK30-LLVM-NOTICE.txt, copied verbatim from Android NDK
+30.0.16248370, toolchains/llvm/prebuilt/windows-x86_64/NOTICE. This is the full
+toolchain notice, including LLVM runtime notices and other toolchain components.
+The publisher metadata identifies the source repository but does not identify
+an exact source commit for this artifact. The downloaded binary archive itself
+is checksum-pinned.
+
+Source code, the dependency revisions, the Dobby patch and the CMake/Gradle build
+scripts are needed to rebuild or relink this prototype with modified libraries.
+The native library statically links LGPL components. GitHub prereleases provide
+a separate corresponding-source archive with the complete application source,
+pinned native library sources, licenses and rebuild/relink instructions. The
+module ZIP itself is the binary installation package. Dependency source copies
+in the source archive are separate from the checkout locations used by CMake;
+follow the archive's instructions to rebuild or relink with modified libraries.
+
+The manager uses AndroidX, Kotlin and kotlinx.coroutines. Their distribution
+terms remain applicable. The Gradle wrapper retains its upstream license headers.
+
+Development UI guidance: hamen/material-3-skill, MIT, revision
+14385f2bf3804d8779f8b4db2604211f1e70b4c1. This skill is installed separately and
+is not a runtime dependency of the app.

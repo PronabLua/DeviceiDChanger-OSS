@@ -1,0 +1,400 @@
+diff --git a/common/os_arch_features.h b/common/os_arch_features.h
+index 4189c2b..4920fa2 100644
+--- a/common/os_arch_features.h
++++ b/common/os_arch_features.h
+@@ -4,6 +4,8 @@
+ #include <stddef.h>
+ #include "pac_kit.h"
+ 
++#include <sys/mman.h>
++#include <unistd.h>
+ #include "PlatformUnifiedInterface/platform.h"
+ 
+ namespace features {
+@@ -30,13 +32,18 @@ template <typename T> inline T arm64e_pac_strip_and_sign(T &addr) {
+ } // namespace apple
+ 
+ namespace android {
+-inline void make_memory_readable(void *address, size_t size) {
++inline bool make_memory_readable(void *address, size_t size) {
+ #if defined(ANDROID)
+-  auto page = (void *)ALIGN_FLOOR(address, OSMemory::PageSize());
+-  if (!OSMemory::SetPermission(page, OSMemory::PageSize(), kReadExecute)) {
+-    return;
+-  }
++  long PageSize = sysconf(_SC_PAGESIZE);
++  if (PageSize <= 0 || size == 0) return false;
++  uintptr_t Start = (uintptr_t)address;
++  if (size > UINTPTR_MAX - Start) return false;
++  uintptr_t Page = Start - Start % (uintptr_t)PageSize;
++  size_t Length = (size_t)(Start - Page) + size;
++  return mprotect((void *)Page, Length, PROT_READ | PROT_EXEC) == 0;
++#else
++  return true;
+ #endif
+ }
+ } // namespace android
+-} // namespace features
+\ No newline at end of file
++} // namespace features
+diff --git a/source/InstructionRelocation/arm64/InstructionRelocationARM64.cc b/source/InstructionRelocation/arm64/InstructionRelocationARM64.cc
+index f64f611..169d365 100644
+--- a/source/InstructionRelocation/arm64/InstructionRelocationARM64.cc
++++ b/source/InstructionRelocation/arm64/InstructionRelocationARM64.cc
+@@ -12,6 +12,7 @@
+ 
+ #include "inst_constants.h"
+ #include "inst_decode_encode_kit.h"
++#include "InterceptRouting/NearBranchTrampoline/NearBranchTrampoline.h"
+ 
+ using namespace zz::arm64;
+ 
+@@ -170,16 +171,34 @@ int relo_ctx_t::relocate(bool branch) {
+ #define _ turbo_assembler_. // NOLINT
+ 
+   this->relocated_buffer = turbo_assembler_.code_buffer();
++  bool strict_near = g_enable_near_trampoline;
++  bool terminal = false;
+ 
+   while (relo_size() < preferred_relo_size()) {
+     record_relo_start();
+ 
+     uint32_t inst = *(uint32_t *)origin_cursor();
++    if (strict_near && (inst & 0xff000000) == 0x58000000 && decode_imm19_offset(inst) == 8) {
++      int rt = decode_rt(inst);
++      if (rt != 31 && origin_cursor() + 16 <= origin_start() + preferred_relo_size() && *(uint32_t *)(origin_cursor() + 4) == (0xd61f0000u | ((uint32_t)rt << 5))) {
++        uint64_t destination = 0;
++        memcpy(&destination, (void *)(origin_cursor() + 8), sizeof(destination));
++        if (!destination || (destination & 3) || (destination >= origin_start() && destination < origin_start() + preferred_relo_size()))
++          return -1;
++        _ Mov(X(rt), destination);
++        _ br(X(rt));
++        terminal = true;
++        cursor = origin_start() + preferred_relo_size();
++        break;
++      }
++    }
+     if (inst_is_b_bl(inst)) {
+       DEBUG_LOG("%d:relo <b_bl> at %p", relocated_insn_count++, origin_cursor());
+ 
+       int64_t offset = decode_imm26_offset(inst);
+       addr_t dst = origin_cursor() + offset;
++      if (strict_near && dst >= origin_start() && dst < origin_start() + preferred_relo_size())
++        return -1;
+       DEFINE_DATA_LABEL(dst, dst);
+       {
+         _ Ldr(TMP_REG_0, dst_data_label);
+@@ -187,6 +206,7 @@ int relo_ctx_t::relocate(bool branch) {
+           _ blr(TMP_REG_0);
+         } else {
+           _ br(TMP_REG_0);
++          terminal = strict_near;
+         }
+       }
+ 
+@@ -198,6 +218,11 @@ int relo_ctx_t::relocate(bool branch) {
+ 
+       int rt = decode_rt(inst);
+       char opc = bits(inst, 30, 31);
++      if (strict_near) {
++        size_t width = opc == 0 ? 4 : 8;
++        if ((inst & (1u << 26)) || opc > 1 || (dst < origin_start() + preferred_relo_size() && dst + width > origin_start()))
++          return -1;
++      }
+ 
+       {
+         _ Mov(TMP_REG_0, dst);
+@@ -214,6 +239,8 @@ int relo_ctx_t::relocate(bool branch) {
+ 
+       int64_t offset = decode_immhi_immlo_offset(inst);
+       addr_t dst = origin_cursor() + offset;
++      if (strict_near && dst >= origin_start() && dst < origin_start() + preferred_relo_size())
++        return -1;
+ 
+       int rd = decode_rd(inst);
+ 
+@@ -226,6 +253,8 @@ int relo_ctx_t::relocate(bool branch) {
+ 
+       int64_t offset = decode_immhi_immlo_zero12_offset(inst);
+       addr_t dst = origin_cursor() + offset;
++      if (strict_near && dst >= origin_start() && dst < origin_start() + preferred_relo_size())
++        return -1;
+       dst = arm64_trunc_page(dst);
+ 
+       int rd = decode_rd(inst);
+@@ -239,6 +268,8 @@ int relo_ctx_t::relocate(bool branch) {
+ 
+       int64_t offset = decode_imm19_offset(inst);
+       addr_t dst = origin_cursor() + offset;
++      if (strict_near && dst >= origin_start() && dst < origin_start() + preferred_relo_size())
++        return -1;
+ 
+       uint32_t branch_inst = inst;
+       {
+@@ -265,6 +296,8 @@ int relo_ctx_t::relocate(bool branch) {
+ 
+       int64_t offset = decode_imm19_offset(inst);
+       addr_t dst = origin_cursor() + offset;
++      if (strict_near && dst >= origin_start() && dst < origin_start() + preferred_relo_size())
++        return -1;
+ 
+       uint32_t branch_inst = inst;
+       {
+@@ -291,6 +324,8 @@ int relo_ctx_t::relocate(bool branch) {
+ 
+       int64_t offset = decode_imm14_offset(inst);
+       addr_t dst = origin_cursor() + offset;
++      if (strict_near && dst >= origin_start() && dst < origin_start() + preferred_relo_size())
++        return -1;
+ 
+       uint32_t branch_inst = inst;
+       {
+@@ -314,15 +349,21 @@ int relo_ctx_t::relocate(bool branch) {
+       }
+     } else {
+       _ Emit(inst);
++      if (strict_near && ((inst & 0xfffffc1fu) == 0xd61f0000u || (inst & 0xfffffc1fu) == 0xd65f0000u))
++        terminal = true;
+     }
+ 
+     this->cursor += sizeof(uint32_t);
++    if (terminal) {
++      cursor = origin_start() + preferred_relo_size();
++      break;
++    }
+   }
+ 
+   correct_final_relo_size();
+ 
+   // TODO: if last instr is unlink branch, ignore it
+-  if (branch) {
++  if (branch && !terminal) {
+     CodeGen codegen(&turbo_assembler_);
+     codegen.LiteralLdrBranch(origin_cursor());
+   }
+@@ -335,7 +376,10 @@ int relo_ctx_t::relocate(bool branch) {
+ 
+ void GenRelocateCode(void *buffer, CodeMemBlock *origin, CodeMemBlock *relocated, bool branch) {
+   relo_ctx_t ctx(origin);
+-  ctx.relocate(branch);
++  if (ctx.relocate(branch) != 0) {
++    *relocated = CodeMemBlock(0, 0);
++    return;
++  }
+   *relocated = ctx.relocated;
+ }
+ 
+diff --git a/source/InterceptRouting/InlineHookRouting.h b/source/InterceptRouting/InlineHookRouting.h
+index f0b451b..6cc4e25 100644
+--- a/source/InterceptRouting/InlineHookRouting.h
++++ b/source/InterceptRouting/InlineHookRouting.h
+@@ -19,9 +19,14 @@ struct InlineHookRouting : InterceptRouting {
+   void BuildRouting() {
+     __FUNC_CALL_TRACE__();
+ 
+-    GenerateTrampoline();
++    if (!GenerateTrampoline()) {
++      error = 1;
++      return;
++    }
+ 
+     GenerateRelocatedCode();
++    if (error)
++      return;
+ 
+     BackupOriginCode();
+   }
+@@ -29,14 +34,21 @@ struct InlineHookRouting : InterceptRouting {
+ 
+ PUBLIC inline int DobbyHook(void *address, void *fake_func, void **out_origin_func) {
+   __FUNC_CALL_TRACE__();
+-  if (!address) {
++  if (out_origin_func)
++    *out_origin_func = nullptr;
++  if (!address || !fake_func) {
+     ERROR_LOG("address is 0x0");
+     return -1;
+   }
+ 
+   features::apple::arm64e_pac_strip(address);
+   features::apple::arm64e_pac_strip(fake_func);
+-  features::android::make_memory_readable(address, 4);
++#if defined(TARGET_ARCH_ARM64)
++  if (g_enable_near_trampoline && ((uintptr_t)address & 3))
++    return -1;
++#endif
++  if (!features::android::make_memory_readable(address, 16))
++    return -1;
+ 
+   DEBUG_LOG("----- [DobbyHook: %p] -----", address);
+ 
+@@ -51,11 +63,18 @@ PUBLIC inline int DobbyHook(void *address, void *fake_func, void **out_origin_fu
+ 
+   auto routing = new InlineHookRouting(entry, (addr_t)fake_func);
+   routing->BuildRouting();
++  if (routing->error) {
++    delete routing;
++    delete entry;
++    return -1;
++  }
+   routing->Active();
+   entry->routing = routing;
+ 
+   if (routing->error) {
+     ERROR_LOG("build routing error.");
++    delete routing;
++    delete entry;
+     return -1;
+   }
+ 
+diff --git a/source/InterceptRouting/InterceptRouting.h b/source/InterceptRouting/InterceptRouting.h
+index fd94884..4b862c2 100644
+--- a/source/InterceptRouting/InterceptRouting.h
++++ b/source/InterceptRouting/InterceptRouting.h
+@@ -45,17 +45,21 @@ struct InterceptRouting {
+   addr_t trampoline_addr() {
+     if (near_trampoline)
+       return near_trampoline->addr();
+-    return trampoline->addr();
++    return trampoline ? trampoline->addr() : 0;
+   }
+ 
+   size_t trampoline_size() {
+     if (near_trampoline)
+       return near_trampoline->size();
+-    return trampoline->size();
++    return trampoline ? trampoline->size() : 0;
+   }
+ 
+   virtual void Active() {
+     __FUNC_CALL_TRACE__();
++    if (error || !entry->origin_code_ || !entry->patched_code_) {
++      error = 1;
++      return;
++    }
+     auto ret = DobbyCodePatch((void *)entry->addr, (uint8_t *)trampoline_addr(), trampoline_size());
+     error |= (ret != 0);
+   }
+@@ -74,11 +78,21 @@ struct InterceptRouting {
+ 
+     if (g_enable_near_trampoline) {
+       near_trampoline = GenerateNearTrampolineBuffer(from, to);
++#if defined(TARGET_ARCH_ARM64)
++      if (!near_trampoline || near_trampoline->size() != sizeof(uint32_t)) {
++        error = 1;
++        return false;
++      }
++#endif
+     }
+ 
+     if (!near_trampoline) {
+       trampoline = GenerateNormalTrampolineBuffer(from, to);
+     }
++    if (!trampoline_addr() || !trampoline_size()) {
++      error = 1;
++      return false;
++    }
+     return true;
+   }
+ 
+@@ -87,11 +101,16 @@ struct InterceptRouting {
+     if (trampoline_addr() == 0) {
+       ERROR_LOG("GenerateTrampoline must be called first");
+       error = 1;
++      return;
+     }
+ 
+     auto code_addr = entry->addr;
+     features::arm_thumb_fix_addr(code_addr);
+     auto preferred_size = trampoline_size();
++#if defined(TARGET_ARCH_ARM64)
++    if (g_enable_near_trampoline && preferred_size < 16)
++      preferred_size = 16;
++#endif
+     auto origin = CodeMemBlock(code_addr, preferred_size);
+     auto relocated = CodeMemBlock(0, 0);
+     GenRelocateCodeAndBranch((void *)code_addr, &origin, &relocated);
+@@ -105,11 +124,16 @@ struct InterceptRouting {
+     debug_hex_log_buffer((uint8_t *)relocated.addr(), relocated.size);
+ 
+     entry->patched = origin;
++#if defined(TARGET_ARCH_ARM64)
++    if (g_enable_near_trampoline)
++      entry->patched = CodeMemBlock(code_addr, trampoline_size());
++#endif
+     entry->relocated = relocated;
+   }
+ 
+   void BackupOriginCode() {
+     __FUNC_CALL_TRACE__();
+     entry->backup_orig_code();
++    entry->backup_patch_code((uint8_t *)trampoline_addr(), trampoline_size());
+   }
+ };
+diff --git a/source/Interceptor.h b/source/Interceptor.h
+index 77e8e78..218ce13 100644
+--- a/source/Interceptor.h
++++ b/source/Interceptor.h
+@@ -28,12 +28,17 @@ struct Interceptor {
+     InterceptRouting *routing;
+ 
+     uint8_t *origin_code_ = 0;
++    uint8_t *patched_code_ = 0;
+ 
+     Entry(addr_t addr) {
+       this->addr = addr;
+     }
+ 
+     ~Entry() {
++      if (origin_code_)
++        operator delete(origin_code_);
++      if (patched_code_)
++        operator delete(patched_code_);
+     }
+ 
+     void backup_orig_code() {
+@@ -44,11 +49,20 @@ struct Interceptor {
+       memcpy(origin_code_, orig, tramp_size);
+     }
+ 
+-    void restore_orig_code() {
++    void backup_patch_code(const uint8_t *code, size_t size) {
++      patched_code_ = (uint8_t *)operator new(size);
++      memcpy(patched_code_, code, size);
++    }
++
++    bool restore_orig_code() {
+       __FUNC_CALL_TRACE__();
+-      DobbyCodePatch((void *)patched.addr(), origin_code_, patched.size);
++      if (!origin_code_ || !patched_code_ || memcmp((void *)patched.addr(), patched_code_, patched.size) != 0)
++        return false;
++      if (DobbyCodePatch((void *)patched.addr(), origin_code_, patched.size) != 0)
++        return false;
+       operator delete(origin_code_);
+       origin_code_ = nullptr;
++      return true;
+     }
+ 
+     void feature_set_arm_thumb(bool thumb) {
+@@ -97,4 +111,4 @@ inline static Interceptor gInterceptor;
+ 
+ inline Interceptor *Interceptor::Shared() {
+   return &gInterceptor;
+-}
+\ No newline at end of file
++}
+diff --git a/source/dobby.cpp b/source/dobby.cpp
+index ef50318..d657415 100644
+--- a/source/dobby.cpp
++++ b/source/dobby.cpp
+@@ -27,8 +27,9 @@ PUBLIC int DobbyDestroy(void *address) {
+ 
+   auto entry = gInterceptor.find((addr_t)address);
+   if (entry) {
++    if (!entry->restore_orig_code())
++      return -1;
+     gInterceptor.remove((addr_t)address);
+-    entry->restore_orig_code();
+     // FIXME: delete entry safely
+     // delete entry;
+     return 0;

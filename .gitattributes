@@ -1,0 +1,16 @@
+* text=auto
+*.sh text eol=lf
+*.kt text eol=lf
+*.java text eol=lf
+*.cpp text eol=lf
+*.c text eol=lf
+*.hpp text eol=lf
+*.h text eol=lf
+*.md text eol=lf
+*.MD text eol=lf
+*.ps1 text eol=lf
+gradlew text eol=lf
+*.bat text eol=crlf
+*.jar binary
+licenses/*.txt -text
+licenses/index.json text eol=lf
